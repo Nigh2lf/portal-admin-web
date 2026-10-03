@@ -17,7 +17,7 @@ import { formatarData, formatarMoeda } from "@/lib/utils/format";
 
 export const metadata = { title: "Imóveis" };
 
-const FILTROS = ["advertiser", "property_type", "city", "status", "is_active", "is_featured"];
+const FILTROS = ["advertiser", "property_type", "city", "status", "is_active", "ad_type"];
 
 function Precos({ i }: { i: ImovelLista }) {
   const itens = [
@@ -72,7 +72,7 @@ export default async function ImoveisPage({ searchParams }: PageProps<"/imoveis"
           { nome: "city", rotulo: "Cidade", opcoes: opcoes(cidades) },
           { nome: "status", rotulo: "Status", opcoes: STATUS_IMOVEL.map((s) => ({ value: s.value, label: s.label })) },
           { nome: "is_active", rotulo: "Ativo", opcoes: [{ value: "true", label: "Ativos" }, { value: "false", label: "Inativos" }] },
-          { nome: "is_featured", rotulo: "Destaque", opcoes: [{ value: "true", label: "Em destaque" }, { value: "false", label: "Sem destaque" }] },
+          { nome: "ad_type", rotulo: "Tipo do anúncio", opcoes: [{ value: "NORMAL", label: "Normal" }, { value: "FEATURED", label: "Destaque" }, { value: "SUPER_FEATURED", label: "Superdestaque" }] },
         ]}
       />
       <DataTable
@@ -126,7 +126,8 @@ export default async function ImoveisPage({ searchParams }: PageProps<"/imoveis"
               <div className="flex flex-wrap gap-1">
                 <Badge variant={i.status === "PUBLISHED" ? "default" : "secondary"}>{i.status === "PUBLISHED" ? "Publicado" : "Rascunho"}</Badge>
                 <StatusBadge ativo={i.is_active} />
-                {i.is_featured && <Badge variant="outline" className="gap-1 border-warning/40 text-warning"><Star className="size-3" /> Destaque</Badge>}
+                {i.ad_type === "SUPER_FEATURED" && <Badge className="gap-1"><Star className="size-3" /> Superdestaque</Badge>}
+                {i.ad_type === "FEATURED" && <Badge variant="outline" className="gap-1 border-warning/40 text-warning"><Star className="size-3" /> Destaque</Badge>}
               </div>
             ),
           },

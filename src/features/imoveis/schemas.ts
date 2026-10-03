@@ -20,7 +20,7 @@ export const imovelSchema = z
     reference_code: z.string().trim().min(1, "Informe o código de referência.").max(45, "Máximo de 45 caracteres."),
     status: z.enum(["DRAFT", "PUBLISHED"]),
     is_active: z.boolean(),
-    is_featured: z.boolean(),
+    ad_type: z.enum(["NORMAL", "FEATURED", "SUPER_FEATURED"]),
     property_type: z.string().min(1, "Selecione o tipo de imóvel."),
     city: z.string().min(1, "Selecione a cidade."),
     neighborhood: z.string().nullable(),

@@ -20,7 +20,7 @@ import { salvarRecurso } from "@/lib/actions/crud";
 import type { LookupOption } from "@/lib/api/types";
 import { areaParaDecimal, brlParaDecimal, decimalParaArea, decimalParaBRL, mascararBRL } from "./moeda";
 import { imovelSchema, type ImovelForm as Valores } from "./schemas";
-import { PERIODOS_TAXA, STATUS_IMOVEL, type ImovelDetalhe } from "./types";
+import { PERIODOS_TAXA, STATUS_IMOVEL, TIPOS_ANUNCIO, type ImovelDetalhe } from "./types";
 
 interface Props {
   imovel: ImovelDetalhe | null;
@@ -54,7 +54,7 @@ export function ImovelForm({ imovel, caracteristicasImovel, caracteristicasCondo
       reference_code: imovel?.reference_code ?? "",
       status: imovel?.status ?? "PUBLISHED",
       is_active: imovel?.is_active ?? true,
-      is_featured: imovel?.is_featured ?? false,
+      ad_type: imovel?.ad_type ?? "NORMAL",
       property_type: imovel?.property_type ?? "",
       city: imovel?.city ?? "",
       neighborhood: imovel?.neighborhood ?? null,
@@ -88,7 +88,7 @@ export function ImovelForm({ imovel, caracteristicasImovel, caracteristicasCondo
       reference_code: v.reference_code,
       status: v.status,
       is_active: v.is_active,
-      is_featured: v.is_featured,
+      ad_type: v.ad_type,
       property_type: v.property_type,
       city: v.city,
       neighborhood: v.neighborhood || null,
@@ -208,16 +208,26 @@ export function ImovelForm({ imovel, caracteristicasImovel, caracteristicasCondo
               </label>
             )}
           />
-          <Controller
-            control={control}
-            name="is_featured"
-            render={({ field }) => (
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm">
-                <Switch id="is_featured" checked={field.value} onCheckedChange={field.onChange} />
-                Destaque
-              </label>
-            )}
-          />
+          <Campo id="ad_type" rotulo="Tipo do anúncio" erro={errors.ad_type?.message}>
+            <Controller
+              control={control}
+              name="ad_type"
+              render={({ field }) => (
+                <Select value={field.value} onValueChange={field.onChange}>
+                  <SelectTrigger id="ad_type" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIPOS_ANUNCIO.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            />
+          </Campo>
         </div>
       </FormSecao>
 

@@ -8,7 +8,7 @@ export interface ImovelLista {
   slug: string;
   status: StatusImovel;
   is_active: boolean;
-  is_featured: boolean;
+  ad_type: "NORMAL" | "FEATURED" | "SUPER_FEATURED";
   advertiser: string;
   advertiser_name: string;
   property_type: string;
@@ -53,7 +53,7 @@ export interface ImovelDetalhe {
   title: string;
   status: StatusImovel;
   is_active: boolean;
-  is_featured: boolean;
+  ad_type: "NORMAL" | "FEATURED" | "SUPER_FEATURED";
   property_type: string;
   property_type_name: string;
   city: string;
@@ -96,3 +96,10 @@ export const PERIODOS_TAXA: Array<{ value: PeriodoTaxa; label: string }> = [
 ];
 
 export const ROTULO_PERIODO: Record<PeriodoTaxa, string> = { MONTHLY: "Mensal", YEARLY: "Anual", ONE_TIME: "Única" };
+
+export type TipoAnuncio = "NORMAL" | "FEATURED" | "SUPER_FEATURED";
+export const TIPOS_ANUNCIO: Array<{ value: TipoAnuncio; label: string; descricao: string }> = [
+  { value: "NORMAL", label: "Normal", descricao: "Ordem padrão na listagem." },
+  { value: "FEATURED", label: "Destaque", descricao: "Aparece antes dos normais e na home. Conta no limite do plano." },
+  { value: "SUPER_FEATURED", label: "Superdestaque", descricao: "Aparece antes de todos. Conta no limite do plano." },
+];
