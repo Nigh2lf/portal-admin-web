@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Ban, BarChart3, Briefcase, Building2, Clock, CreditCard, Download, Globe, Handshake, Home, Image as ImageIcon,
-  Inbox, LayoutTemplate, Lightbulb, Mail, Map, MapPin, Megaphone, Newspaper, Plug, Search, ShieldCheck, Sparkles,
+  Inbox, LayoutTemplate, Lightbulb, Mail, Map, MapPin, Megaphone, Newspaper, Plug, RefreshCw, Search, ShieldCheck, Sparkles,
   Tag, Users, type LucideIcon,
 } from "lucide-react";
 import type { GrupoNav, IconeNav } from "@/config/nav";
@@ -15,6 +15,7 @@ const ICONES: Record<IconeNav, LucideIcon> = {
   layout: LayoutTemplate, map: Map, building: Building2, pin: MapPin, briefcase: Briefcase, creditcard: CreditCard,
   plug: Plug, home: Home, tag: Tag, sparkles: Sparkles, ban: Ban, inbox: Inbox, mail: Mail, search: Search,
   handshake: Handshake, lightbulb: Lightbulb, newspaper: Newspaper, download: Download, clock: Clock,
+  refresh: RefreshCw,
 };
 
 export function SidebarNav({ grupos, onNavigate }: { grupos: GrupoNav[]; onNavigate?: () => void }) {

@@ -1,7 +1,7 @@
 export type IconeNav =
   | "dashboard" | "users" | "shield" | "globe" | "image" | "megaphone" | "layout" | "map" | "building" | "pin"
   | "briefcase" | "creditcard" | "plug" | "home" | "tag" | "sparkles" | "ban" | "inbox" | "mail" | "search"
-  | "handshake" | "lightbulb" | "newspaper" | "download" | "clock";
+  | "handshake" | "lightbulb" | "newspaper" | "download" | "clock" | "refresh";
 
 export interface ItemNav {
   label: string;
@@ -81,6 +81,7 @@ export const NAV: GrupoNav[] = [
     itens: [
       { label: "Importações XML", href: "/importacoes", viewName: "xml_import_run", icon: "download" },
       { label: "Tarefas agendadas", href: "/tarefas", viewName: "scheduled_task_run", icon: "clock" },
+      { label: "Cache do site", href: "/cache", viewName: "public_cache", icon: "refresh" },
     ],
   },
 ];
