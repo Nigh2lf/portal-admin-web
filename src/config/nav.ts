@@ -28,6 +28,7 @@ export const NAV: GrupoNav[] = [
     titulo: "Portais",
     itens: [
       { label: "Portais", href: "/portais", viewName: "portal", icon: "globe" },
+      { label: "Menus do site", href: "/menus", viewName: "portal_menu_item", icon: "layout" },
       { label: "Banners do hero", href: "/banners", viewName: "banner", icon: "image" },
       { label: "Espaços publicitários", href: "/espacos-publicitarios", viewName: "ad_placement", icon: "layout" },
       { label: "Anúncios", href: "/anuncios", viewName: "ad", icon: "megaphone" },
