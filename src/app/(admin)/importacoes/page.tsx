@@ -9,28 +9,64 @@ import { Badge } from "@/components/ui/badge";
 import { AcaoVer } from "@/features/compartilhado/acao-ver";
 import { FiltroPeriodo } from "@/features/compartilhado/filtro-periodo";
 import { filtroAnunciante } from "@/features/compartilhado/filtros";
-import type { ImportacaoLista } from "@/features/importacoes/types";
+import { AtualizarEnquantoRoda } from "@/features/importacoes/atualizar-enquanto-roda";
+import { ImportarAgora } from "@/features/importacoes/importar-agora";
+import type {
+  AnuncianteXml,
+  ImportacaoLista,
+} from "@/features/importacoes/types";
+import { apiFetch } from "@/lib/api/client";
 import { paramsDeBusca, recurso } from "@/lib/api/resources";
 import { pode, requirePermissao } from "@/lib/auth/session";
 import { formatarData, formatarNumero } from "@/lib/utils/format";
 
 export const metadata = { title: "Importações XML" };
 
-export default async function ImportacoesPage({ searchParams }: PageProps<"/importacoes">) {
+export default async function ImportacoesPage({
+  searchParams,
+}: PageProps<"/importacoes">) {
   const sessao = await requirePermissao("xml_import_run");
-  const params = paramsDeBusca(await searchParams, ["advertiser", "report_email_sent", "started_at__gte", "started_at__lte"], { ordering: "-started_at" });
-  const [pagina, fAnunciante] = await Promise.all([recurso.listar<ImportacaoLista>("xml-import-runs", params), filtroAnunciante()]);
+  const params = paramsDeBusca(
+    await searchParams,
+    ["advertiser", "report_email_sent", "started_at__gte", "started_at__lte"],
+    { ordering: "-started_at" },
+  );
+  const podeImportar = pode(sessao, "xml_import_run", "create");
+  const [pagina, fAnunciante, anunciantes] = await Promise.all([
+    recurso.listar<ImportacaoLista>("xml-import-runs", params),
+    filtroAnunciante(),
+    // API sem a rota (deploy fora de ordem) não derruba a listagem: o botão só não aparece.
+    podeImportar
+      ? apiFetch<AnuncianteXml[]>("/xml-import-runs/advertisers/").catch(() => null)
+      : Promise.resolve(null),
+  ]);
 
   return (
     <>
       <PageHeader
         titulo="Importações XML"
-        descricao="Histórico das execuções do job que importa imóveis dos anunciantes via XML."
+        descricao="Execuções da importação dos XML dos anunciantes. Roda sozinha toda noite, das 1h às 3h."
         crumbs={[{ label: "Importações XML" }]}
+        acoes={
+          anunciantes ? <ImportarAgora anunciantes={anunciantes} /> : undefined
+        }
+      />
+      <AtualizarEnquantoRoda
+        ativo={pagina.results.some((i) => !i.finished_at)}
       />
       <Toolbar
         placeholder="Buscar por anunciante…"
-        filtros={[fAnunciante, { nome: "report_email_sent", rotulo: "Relatório", opcoes: [{ value: "true", label: "E-mail enviado" }, { value: "false", label: "E-mail não enviado" }] }]}
+        filtros={[
+          fAnunciante,
+          {
+            nome: "report_email_sent",
+            rotulo: "Relatório",
+            opcoes: [
+              { value: "true", label: "E-mail enviado" },
+              { value: "false", label: "E-mail não enviado" },
+            ],
+          },
+        ]}
       >
         <FiltroPeriodo campo="started_at" />
       </Toolbar>
@@ -38,24 +74,82 @@ export default async function ImportacoesPage({ searchParams }: PageProps<"/impo
         linhas={pagina.results}
         ordenacaoAtual={params.ordering as string}
         colunas={[
-          { chave: "advertiser_name", titulo: "Anunciante", render: (i) => <Link href={`/importacoes/${i.id}`} className="font-medium hover:underline">{i.advertiser_name}</Link> },
-          { chave: "started_at", titulo: "Início", ordenavel: "started_at", render: (i) => formatarData(i.started_at, true) },
+          {
+            chave: "advertiser_name",
+            titulo: "Anunciante",
+            render: (i) => (
+              <Link
+                href={`/importacoes/${i.id}`}
+                className="font-medium hover:underline"
+              >
+                {i.advertiser_name}
+              </Link>
+            ),
+          },
+          {
+            chave: "started_at",
+            titulo: "Início",
+            ordenavel: "started_at",
+            render: (i) => formatarData(i.started_at, true),
+          },
           {
             chave: "finished_at",
             titulo: "Término",
             ordenavel: "finished_at",
-            render: (i) => (i.finished_at ? formatarData(i.finished_at, true) : <Badge variant="outline" className="border-warning/40 text-warning">Em andamento</Badge>),
+            render: (i) =>
+              i.finished_at ? (
+                formatarData(i.finished_at, true)
+              ) : (
+                <Badge
+                  variant="outline"
+                  className="border-warning/40 text-warning"
+                >
+                  Em andamento
+                </Badge>
+              ),
           },
-          { chave: "total_properties", titulo: "Total", ordenavel: "total_properties", className: "text-right tabular-nums", render: (i) => formatarNumero(i.total_properties) },
-          { chave: "valid_properties", titulo: "Válidos", className: "text-right tabular-nums", render: (i) => <span className="text-success">{formatarNumero(i.valid_properties)}</span> },
+          {
+            chave: "total_properties",
+            titulo: "Total",
+            ordenavel: "total_properties",
+            className: "text-right tabular-nums",
+            render: (i) => formatarNumero(i.total_properties),
+          },
+          {
+            chave: "valid_properties",
+            titulo: "Válidos",
+            className: "text-right tabular-nums",
+            render: (i) => (
+              <span className="text-success">
+                {formatarNumero(i.valid_properties)}
+              </span>
+            ),
+          },
           {
             chave: "invalid_properties",
             titulo: "Inválidos",
             ordenavel: "invalid_properties",
             className: "text-right tabular-nums",
-            render: (i) => <span className={i.invalid_properties > 0 ? "font-medium text-destructive" : ""}>{formatarNumero(i.invalid_properties)}</span>,
+            render: (i) => (
+              <span
+                className={
+                  i.invalid_properties > 0 ? "font-medium text-destructive" : ""
+                }
+              >
+                {formatarNumero(i.invalid_properties)}
+              </span>
+            ),
           },
-          { chave: "report_email_sent", titulo: "Relatório", render: (i) => <StatusBadge ativo={i.report_email_sent} rotulos={["Enviado", "Não enviado"]} /> },
+          {
+            chave: "report_email_sent",
+            titulo: "Relatório",
+            render: (i) => (
+              <StatusBadge
+                ativo={i.report_email_sent}
+                rotulos={["Enviado", "Não enviado"]}
+              />
+            ),
+          },
         ]}
         acoes={(i) => (
           <RowActions
@@ -67,7 +161,11 @@ export default async function ImportacoesPage({ searchParams }: PageProps<"/impo
             extras={<AcaoVer href={`/importacoes/${i.id}`} />}
           />
         )}
-        vazio={{ titulo: "Nenhuma importação registrada", descricao: "Os registros são gravados automaticamente pelo job de importação." }}
+        vazio={{
+          titulo: "Nenhuma importação registrada",
+          descricao:
+            "Os registros são gravados automaticamente pelo job de importação.",
+        }}
       />
       <PaginationBar pagina={pagina} />
     </>
