@@ -5,15 +5,18 @@ import { RowActions } from "@/components/data/row-actions";
 import { StatusBadge } from "@/components/data/status-badge";
 import { Toolbar } from "@/components/data/toolbar";
 import { PageHeader } from "@/components/layout/page-header";
-import { Badge } from "@/components/ui/badge";
 import { AcaoVer } from "@/features/compartilhado/acao-ver";
 import { FiltroPeriodo } from "@/features/compartilhado/filtro-periodo";
 import { filtroAnunciante } from "@/features/compartilhado/filtros";
 import { AtualizarEnquantoRoda } from "@/features/importacoes/atualizar-enquanto-roda";
-import { ImportarAgora } from "@/features/importacoes/importar-agora";
-import type {
-  AnuncianteXml,
-  ImportacaoLista,
+import { BatchProgress } from "@/features/importacoes/batch-progress";
+import { ImportNow } from "@/features/importacoes/import-now";
+import { RunStatusBadge } from "@/features/importacoes/status-badges";
+import {
+  RUN_STATUS_LABEL,
+  type AnuncianteXml,
+  type ImportBatchDetail,
+  type ImportacaoLista,
 } from "@/features/importacoes/types";
 import { apiFetch } from "@/lib/api/client";
 import { paramsDeBusca, recurso } from "@/lib/api/resources";
@@ -28,17 +31,29 @@ export default async function ImportacoesPage({
   const sessao = await requirePermissao("xml_import_run");
   const params = paramsDeBusca(
     await searchParams,
-    ["advertiser", "report_email_sent", "started_at__gte", "started_at__lte"],
+    [
+      "advertiser",
+      "batch",
+      "status",
+      "report_email_sent",
+      "started_at__gte",
+      "started_at__lte",
+    ],
     { ordering: "-started_at" },
   );
   const podeImportar = pode(sessao, "xml_import_run", "create");
-  const [pagina, fAnunciante, anunciantes] = await Promise.all([
+  const [pagina, fAnunciante, anunciantes, activeBatch] = await Promise.all([
     recurso.listar<ImportacaoLista>("xml-import-runs", params),
     filtroAnunciante(),
     // API sem a rota (deploy fora de ordem) não derruba a listagem: o botão só não aparece.
     podeImportar
-      ? apiFetch<AnuncianteXml[]>("/xml-import-runs/advertisers/").catch(() => null)
+      ? apiFetch<AnuncianteXml[]>("/xml-import-runs/advertisers/").catch(
+          () => null,
+        )
       : Promise.resolve(null),
+    apiFetch<ImportBatchDetail | null>(
+      "/xml-import-runs/batches/active/",
+    ).catch(() => null),
   ]);
 
   return (
@@ -48,16 +63,31 @@ export default async function ImportacoesPage({
         descricao="Execuções da importação dos XML dos anunciantes. Roda sozinha toda noite, das 1h às 3h."
         crumbs={[{ label: "Importações XML" }]}
         acoes={
-          anunciantes ? <ImportarAgora anunciantes={anunciantes} /> : undefined
+          anunciantes ? (
+            <ImportNow advertisers={anunciantes} disabled={!!activeBatch} />
+          ) : undefined
         }
       />
+      <div className="mb-6">
+        <BatchProgress initial={activeBatch} canCancel={podeImportar} />
+      </div>
       <AtualizarEnquantoRoda
-        ativo={pagina.results.some((i) => !i.finished_at)}
+        ativo={
+          !activeBatch && pagina.results.some((i) => i.status === "RUNNING")
+        }
       />
       <Toolbar
         placeholder="Buscar por anunciante…"
         filtros={[
           fAnunciante,
+          {
+            nome: "status",
+            rotulo: "Status",
+            opcoes: Object.entries(RUN_STATUS_LABEL).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          },
           {
             nome: "report_email_sent",
             rotulo: "Relatório",
@@ -87,6 +117,15 @@ export default async function ImportacoesPage({
             ),
           },
           {
+            chave: "status",
+            titulo: "Status",
+            render: (i) => (
+              <span title={i.error_message || undefined}>
+                <RunStatusBadge status={i.status} />
+              </span>
+            ),
+          },
+          {
             chave: "started_at",
             titulo: "Início",
             ordenavel: "started_at",
@@ -97,16 +136,7 @@ export default async function ImportacoesPage({
             titulo: "Término",
             ordenavel: "finished_at",
             render: (i) =>
-              i.finished_at ? (
-                formatarData(i.finished_at, true)
-              ) : (
-                <Badge
-                  variant="outline"
-                  className="border-warning/40 text-warning"
-                >
-                  Em andamento
-                </Badge>
-              ),
+              i.finished_at ? formatarData(i.finished_at, true) : "—",
           },
           {
             chave: "total_properties",

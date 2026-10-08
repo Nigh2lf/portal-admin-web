@@ -1,7 +1,13 @@
+export type RunStatus =
+  "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED" | "SKIPPED";
+
 export interface ImportacaoLista {
   id: string;
   advertiser: string;
   advertiser_name: string;
+  batch: string | null;
+  status: RunStatus;
+  error_message: string;
   started_at: string;
   finished_at: string | null;
   total_properties: number;
@@ -51,6 +57,88 @@ export interface Simulacao {
   codigos_excluidos?: string[];
   ignorados_lista?: Array<{ codigo: string; motivo: string }>;
 }
+
+// ---------------------------------------------------------------- lotes
+
+export type BatchStatus =
+  | "QUEUED"
+  | "RUNNING"
+  | "CANCELLING"
+  | "CANCELLED"
+  | "SUCCESS"
+  | "PARTIAL"
+  | "FAILED";
+
+export const ACTIVE_BATCH_STATUSES: BatchStatus[] = [
+  "QUEUED",
+  "RUNNING",
+  "CANCELLING",
+];
+
+export interface ImportBatch {
+  id: string;
+  status: BatchStatus;
+  origin: "MANUAL" | "CRON" | "COMMAND";
+  scope: "ALL" | "SELECTED";
+  total_advertisers: number;
+  done: number;
+  ok: number;
+  failed: number;
+  skipped: number;
+  cancelled: number;
+  current_advertiser: string | null;
+  current_advertiser_name: string | null;
+  created_by: string | null;
+  created_by_name: string | null;
+  deadline_at: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  heartbeat_at: string | null;
+  error_message: string;
+  created_at: string;
+}
+
+export interface ImportBatchRun {
+  id: string;
+  advertiser: string;
+  advertiser_name: string;
+  status: RunStatus;
+  error_message: string;
+  started_at: string;
+  finished_at: string | null;
+  total_properties: number;
+  valid_properties: number;
+  invalid_properties: number;
+}
+
+export interface ImportBatchDetail extends ImportBatch {
+  runs: ImportBatchRun[];
+  pending: Array<{ id: string; name: string }>;
+}
+
+export const BATCH_STATUS_LABEL: Record<BatchStatus, string> = {
+  QUEUED: "Na fila",
+  RUNNING: "Executando",
+  CANCELLING: "Cancelando",
+  CANCELLED: "Cancelado",
+  SUCCESS: "Concluído",
+  PARTIAL: "Concluído com falhas",
+  FAILED: "Falhou",
+};
+
+export const RUN_STATUS_LABEL: Record<RunStatus, string> = {
+  RUNNING: "Em andamento",
+  SUCCESS: "Concluída",
+  FAILED: "Falhou",
+  CANCELLED: "Cancelada",
+  SKIPPED: "Não executada",
+};
+
+export const BATCH_ORIGIN_LABEL: Record<ImportBatch["origin"], string> = {
+  MANUAL: "Painel",
+  CRON: "Cron",
+  COMMAND: "Comando",
+};
 
 /** Nome em português dos campos que a simulação aponta como alterados. */
 export const CAMPOS_IMOVEL: Record<string, string> = {
