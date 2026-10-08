@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { CloudDownload } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data/data-table";
 import { PaginationBar } from "@/components/data/pagination-bar";
 import { RowActions } from "@/components/data/row-actions";
@@ -10,11 +12,9 @@ import { FiltroPeriodo } from "@/features/compartilhado/filtro-periodo";
 import { filtroAnunciante } from "@/features/compartilhado/filtros";
 import { AtualizarEnquantoRoda } from "@/features/importacoes/atualizar-enquanto-roda";
 import { BatchProgress } from "@/features/importacoes/batch-progress";
-import { ImportNow } from "@/features/importacoes/import-now";
 import { RunStatusBadge } from "@/features/importacoes/status-badges";
 import {
   RUN_STATUS_LABEL,
-  type AnuncianteXml,
   type ImportBatchDetail,
   type ImportacaoLista,
 } from "@/features/importacoes/types";
@@ -42,15 +42,9 @@ export default async function ImportacoesPage({
     { ordering: "-started_at" },
   );
   const podeImportar = pode(sessao, "xml_import_run", "create");
-  const [pagina, fAnunciante, anunciantes, activeBatch] = await Promise.all([
+  const [pagina, fAnunciante, activeBatch] = await Promise.all([
     recurso.listar<ImportacaoLista>("xml-import-runs", params),
     filtroAnunciante(),
-    // API sem a rota (deploy fora de ordem) não derruba a listagem: o botão só não aparece.
-    podeImportar
-      ? apiFetch<AnuncianteXml[]>("/xml-import-runs/advertisers/").catch(
-          () => null,
-        )
-      : Promise.resolve(null),
     apiFetch<ImportBatchDetail | null>(
       "/xml-import-runs/batches/active/",
     ).catch(() => null),
@@ -63,8 +57,12 @@ export default async function ImportacoesPage({
         descricao="Execuções da importação dos XML dos anunciantes. Roda sozinha toda noite, das 1h às 3h."
         crumbs={[{ label: "Importações XML" }]}
         acoes={
-          anunciantes ? (
-            <ImportNow advertisers={anunciantes} disabled={!!activeBatch} />
+          podeImportar ? (
+            <Button asChild>
+              <Link href="/importacoes/importar">
+                <CloudDownload data-icon="inline-start" /> Importar agora
+              </Link>
+            </Button>
           ) : undefined
         }
       />
