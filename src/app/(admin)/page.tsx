@@ -1,51 +1,126 @@
 import Link from "next/link";
-import { ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { NAV } from "@/config/nav";
-import { recurso } from "@/lib/api/resources";
+import {
+  daysAgoIso,
+  fetchCount,
+  fetchSummary,
+  type AdvertiserSummary,
+  type PropertySummary,
+  type UserSummary,
+} from "@/features/dashboard/data";
+import { MetricCard } from "@/features/dashboard/metric-card";
 import { pode, requireSession } from "@/lib/auth/session";
 
-const INDICADORES: Array<{ titulo: string; recurso: string; viewName: string; href: string }> = [
-  { titulo: "Usuários", recurso: "users", viewName: "user", href: "/usuarios" },
-  { titulo: "Anunciantes", recurso: "advertisers", viewName: "advertiser", href: "/anunciantes" },
-  { titulo: "Imóveis", recurso: "properties", viewName: "property", href: "/imoveis" },
-  { titulo: "Mensagens de imóveis", recurso: "property-inquiries", viewName: "property_inquiry", href: "/mensagens" },
-  { titulo: "Encomendas", recurso: "property-requests", viewName: "property_request", href: "/encomendas" },
-  { titulo: "Portais", recurso: "portals", viewName: "portal", href: "/portais" },
-];
-
-async function contar(path: string) {
-  try {
-    const r = await recurso.listar<{ id: string }>(path, { page_size: 1 });
-    return r.count;
-  } catch {
-    return null;
-  }
-}
+const RECENT_DAYS = 30;
 
 export default async function DashboardPage() {
   const sessao = await requireSession();
-  const visiveis = INDICADORES.filter((i) => pode(sessao, i.viewName));
-  const totais = await Promise.all(visiveis.map((i) => contar(i.recurso)));
+  const can = (viewName: string) => pode(sessao, viewName);
+  const since = daysAgoIso(RECENT_DAYS);
+  const skip = Promise.resolve(null);
+
+  const [users, advertisers, properties, inquiries, recentInquiries, requests, recentRequests, portals, activePortals] =
+    await Promise.all([
+      can("user") ? fetchSummary<UserSummary>("users") : skip,
+      can("advertiser") ? fetchSummary<AdvertiserSummary>("advertisers") : skip,
+      can("property") ? fetchSummary<PropertySummary>("properties") : skip,
+      can("property_inquiry") ? fetchCount("property-inquiries") : skip,
+      can("property_inquiry") ? fetchCount("property-inquiries", { created_at__gte: since }) : skip,
+      can("property_request") ? fetchCount("property-requests") : skip,
+      can("property_request") ? fetchCount("property-requests", { created_at__gte: since }) : skip,
+      can("portal") ? fetchCount("portals") : skip,
+      can("portal") ? fetchCount("portals", { is_active: "true" }) : skip,
+    ]);
+
+  const recentLabel = `Recebidas nos últimos ${RECENT_DAYS} dias`;
 
   return (
     <>
-      <PageHeader titulo={`Olá, ${sessao.name.split(" ")[0] || "admin"}`} descricao="Resumo dos portais de imóveis." />
+      <PageHeader
+        titulo={`Olá, ${sessao.name.split(" ")[0] || "admin"}`}
+        descricao="Resumo dos portais de imóveis: o que está cadastrado e o que está ativo."
+      />
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {visiveis.map((i, k) => (
-          <Card key={i.recurso}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">{i.titulo}</CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-end justify-between">
-              <p className="text-3xl font-semibold tabular-nums">{totais[k] === null ? "—" : totais[k]!.toLocaleString("pt-BR")}</p>
-              <Link href={i.href} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-                Ver <ArrowRight className="size-3.5" />
-              </Link>
-            </CardContent>
-          </Card>
-        ))}
+        {can("property") ? (
+          <MetricCard
+            title="Imóveis"
+            href="/imoveis"
+            total={properties?.total ?? null}
+            active={properties ? { value: properties.visible, label: "visíveis no site" } : undefined}
+            rows={
+              properties
+                ? [
+                    { label: "De anunciante não publicado", value: properties.hidden_by_advertiser },
+                    { label: "Inativos ou rascunho", value: properties.inactive, href: "/imoveis?is_active=false" },
+                    { label: "De anunciantes com XML ativo", value: properties.of_xml_advertisers },
+                  ]
+                : []
+            }
+          />
+        ) : null}
+        {can("advertiser") ? (
+          <MetricCard
+            title="Anunciantes"
+            href="/anunciantes"
+            total={advertisers?.total ?? null}
+            active={advertisers ? { value: advertisers.published, label: "publicados no site" } : undefined}
+            rows={
+              advertisers
+                ? [
+                    { label: "Publicados com imóvel no ar", value: advertisers.published_with_properties },
+                    {
+                      label: "Não publicados",
+                      value: advertisers.total - advertisers.published,
+                      href: "/anunciantes?is_published=false",
+                    },
+                    { label: "Com XML ativo", value: advertisers.with_active_xml },
+                  ]
+                : []
+            }
+          />
+        ) : null}
+        {can("user") ? (
+          <MetricCard
+            title="Usuários"
+            href="/usuarios"
+            total={users?.total ?? null}
+            active={users ? { value: users.logged_in, label: "já acessaram" } : undefined}
+            rows={
+              users
+                ? [
+                    { label: "De anunciante publicado", value: users.of_published_advertisers },
+                    { label: "Com login liberado", value: users.active },
+                    { label: "Administradores", value: users.admins },
+                  ]
+                : []
+            }
+          />
+        ) : null}
+        {can("property_inquiry") ? (
+          <MetricCard
+            title="Mensagens de imóveis"
+            href="/mensagens"
+            total={inquiries}
+            rows={recentInquiries !== null ? [{ label: recentLabel, value: recentInquiries }] : []}
+          />
+        ) : null}
+        {can("property_request") ? (
+          <MetricCard
+            title="Encomendas"
+            href="/encomendas"
+            total={requests}
+            rows={recentRequests !== null ? [{ label: recentLabel, value: recentRequests }] : []}
+          />
+        ) : null}
+        {can("portal") ? (
+          <MetricCard
+            title="Portais"
+            href="/portais"
+            total={portals}
+            active={portals !== null && activePortals !== null ? { value: activePortals, label: "ativos" } : undefined}
+          />
+        ) : null}
       </div>
       <section className="mt-8">
         <h2 className="mb-3 text-lg font-semibold">Atalhos</h2>
