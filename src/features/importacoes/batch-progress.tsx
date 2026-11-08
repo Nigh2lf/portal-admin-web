@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { LoaderCircle, OctagonX, X } from "lucide-react";
+import { ArrowRight, LoaderCircle, OctagonX, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -35,9 +35,12 @@ const POLL_MS = 3000;
 export function BatchProgress({
   initial,
   canCancel,
+  showDetailsLink = true,
 }: {
   initial: ImportBatchDetail | null;
   canCancel: boolean;
+  /** Botão para a página do lote; desligado na própria página do lote. */
+  showDetailsLink?: boolean;
 }) {
   const router = useRouter();
   const [batch, setBatch] = useState<ImportBatchDetail | null>(initial);
@@ -127,6 +130,13 @@ export function BatchProgress({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {showDetailsLink && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/importacoes/lotes/${batch.id}`}>
+                Ver lote <ArrowRight data-icon="inline-end" />
+              </Link>
+            </Button>
+          )}
           {active && canCancel && (
             <Button
               variant="outline"

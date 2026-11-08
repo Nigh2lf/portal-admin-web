@@ -11,6 +11,8 @@ import {
 } from "@/components/ui/table";
 import { BotaoExcluir } from "@/features/compartilhado/botao-excluir";
 import { ListaDetalhe, SecaoDetalhe } from "@/features/compartilhado/detalhe";
+import { formatDuration } from "@/features/importacoes/format";
+import { StatCard } from "@/features/importacoes/stat-card";
 import { RunStatusBadge } from "@/features/importacoes/status-badges";
 import type { ImportacaoDetalhe } from "@/features/importacoes/types";
 import { ApiError } from "@/lib/api/client";
@@ -19,18 +21,6 @@ import { pode, requirePermissao } from "@/lib/auth/session";
 import { formatarData, formatarNumero } from "@/lib/utils/format";
 
 export const metadata = { title: "Importação XML" };
-
-function duracao(inicio: string, fim: string | null) {
-  if (!fim) return "Em andamento";
-  const ms = new Date(fim).getTime() - new Date(inicio).getTime();
-  if (Number.isNaN(ms) || ms < 0) return "—";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s} s`;
-  const m = Math.floor(s / 60);
-  return m < 60
-    ? `${m} min ${s % 60} s`
-    : `${Math.floor(m / 60)} h ${m % 60} min`;
-}
 
 export default async function ImportacaoPage({
   params,
@@ -45,6 +35,14 @@ export default async function ImportacaoPage({
     });
   if (!i) notFound();
 
+  // A execução fica dentro do seu lote; sem lote, nas execuções avulsas.
+  const parent = i.batch
+    ? {
+        label: `Lote de ${formatarData(i.batch_started_at, true)}`,
+        href: `/importacoes/lotes/${i.batch}`,
+      }
+    : { label: "Execuções avulsas", href: "/importacoes/avulsas" };
+
   return (
     <>
       <PageHeader
@@ -52,7 +50,8 @@ export default async function ImportacaoPage({
         descricao={`Iniciada em ${formatarData(i.started_at, true)}`}
         crumbs={[
           { label: "Importações XML", href: "/importacoes" },
-          { label: "Detalhe" },
+          parent,
+          { label: i.advertiser_name },
         ]}
         acoes={
           pode(sessao, "xml_import_run", "delete") && (
@@ -60,7 +59,7 @@ export default async function ImportacaoPage({
               recurso="xml-import-runs"
               id={i.id}
               rotulo="esta importação"
-              voltarHref="/importacoes"
+              voltarHref={parent.href}
               descricao="Os erros vinculados permanecem registrados, mas deixam de apontar para esta execução."
             />
           )
@@ -77,7 +76,7 @@ export default async function ImportacaoPage({
               { rotulo: "Término", valor: formatarData(i.finished_at, true) },
               {
                 rotulo: "Duração",
-                valor: duracao(i.started_at, i.finished_at),
+                valor: formatDuration(i.started_at, i.finished_at),
               },
               {
                 rotulo: "Relatório por e-mail",
@@ -91,26 +90,17 @@ export default async function ImportacaoPage({
             ]}
           />
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Imóveis no XML</p>
-              <p className="text-2xl font-semibold tabular-nums">
-                {formatarNumero(i.total_properties)}
-              </p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Válidos</p>
-              <p className="text-2xl font-semibold text-success tabular-nums">
-                {formatarNumero(i.valid_properties)}
-              </p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Inválidos</p>
-              <p
-                className={`text-2xl font-semibold tabular-nums ${i.invalid_properties > 0 ? "text-destructive" : ""}`}
-              >
-                {formatarNumero(i.invalid_properties)}
-              </p>
-            </div>
+            <StatCard label="Imóveis no XML" value={i.total_properties} />
+            <StatCard
+              label="Válidos"
+              value={i.valid_properties}
+              className="text-success"
+            />
+            <StatCard
+              label="Inválidos"
+              value={i.invalid_properties}
+              className={i.invalid_properties > 0 ? "text-destructive" : ""}
+            />
           </div>
         </SecaoDetalhe>
 

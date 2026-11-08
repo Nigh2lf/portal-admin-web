@@ -26,6 +26,7 @@ export interface ErroImportacao {
 }
 
 export interface ImportacaoDetalhe extends ImportacaoLista {
+  batch_started_at: string | null;
   errors: ErroImportacao[];
   legacy_id: number | null;
   updated_at: string;
@@ -94,6 +95,10 @@ export interface ImportBatch {
   started_at: string | null;
   finished_at: string | null;
   heartbeat_at: string | null;
+  /** Soma dos imóveis das execuções do lote. */
+  total_properties: number;
+  valid_properties: number;
+  invalid_properties: number;
   error_message: string;
   created_at: string;
 }

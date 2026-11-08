@@ -1,10 +1,9 @@
 import Link from "next/link";
-import { CloudDownload } from "lucide-react";
+import { CloudDownload, History } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/data/data-table";
 import { PaginationBar } from "@/components/data/pagination-bar";
 import { RowActions } from "@/components/data/row-actions";
-import { StatusBadge } from "@/components/data/status-badge";
 import { Toolbar } from "@/components/data/toolbar";
 import { PageHeader } from "@/components/layout/page-header";
 import { AcaoVer } from "@/features/compartilhado/acao-ver";
@@ -12,11 +11,14 @@ import { FiltroPeriodo } from "@/features/compartilhado/filtro-periodo";
 import { filtroAnunciante } from "@/features/compartilhado/filtros";
 import { AtualizarEnquantoRoda } from "@/features/importacoes/atualizar-enquanto-roda";
 import { BatchProgress } from "@/features/importacoes/batch-progress";
-import { RunStatusBadge } from "@/features/importacoes/status-badges";
+import { formatDuration } from "@/features/importacoes/format";
+import { BatchStatusBadge } from "@/features/importacoes/status-badges";
 import {
-  RUN_STATUS_LABEL,
+  ACTIVE_BATCH_STATUSES,
+  BATCH_ORIGIN_LABEL,
+  BATCH_STATUS_LABEL,
+  type ImportBatch,
   type ImportBatchDetail,
-  type ImportacaoLista,
 } from "@/features/importacoes/types";
 import { apiFetch } from "@/lib/api/client";
 import { paramsDeBusca, recurso } from "@/lib/api/resources";
@@ -25,25 +27,44 @@ import { formatarData, formatarNumero } from "@/lib/utils/format";
 
 export const metadata = { title: "Importações XML" };
 
-export default async function ImportacoesPage({
+const BATCH_FILTERS = [
+  "advertiser",
+  "status",
+  "origin",
+  "created_at__gte",
+  "created_at__lte",
+];
+
+function batchSource(b: ImportBatch) {
+  const who = b.created_by_name ? ` por ${b.created_by_name}` : "";
+  const scope =
+    b.scope === "ALL"
+      ? "todos os anunciantes"
+      : `${formatarNumero(b.total_advertisers)} escolhido(s)`;
+  return `${BATCH_ORIGIN_LABEL[b.origin]}${who} · ${scope}`;
+}
+
+/** Contadores de anunciantes que não deram certo, só os diferentes de zero. */
+function advertiserProblems(b: ImportBatch) {
+  return (
+    [
+      [b.failed, "com falha", "text-destructive"],
+      [b.skipped, "não executado(s)", ""],
+      [b.cancelled, "cancelado(s)", ""],
+    ] as Array<[number, string, string]>
+  ).filter(([n]) => n > 0);
+}
+
+export default async function ImportBatchesPage({
   searchParams,
 }: PageProps<"/importacoes">) {
-  const sessao = await requirePermissao("xml_import_run");
-  const params = paramsDeBusca(
-    await searchParams,
-    [
-      "advertiser",
-      "batch",
-      "status",
-      "report_email_sent",
-      "started_at__gte",
-      "started_at__lte",
-    ],
-    { ordering: "-started_at" },
-  );
-  const podeImportar = pode(sessao, "xml_import_run", "create");
-  const [pagina, fAnunciante, activeBatch] = await Promise.all([
-    recurso.listar<ImportacaoLista>("xml-import-runs", params),
+  const session = await requirePermissao("xml_import_run");
+  const params = paramsDeBusca(await searchParams, BATCH_FILTERS, {
+    ordering: "-created_at",
+  });
+  const canImport = pode(session, "xml_import_run", "create");
+  const [page, advertiserFilter, activeBatch] = await Promise.all([
+    recurso.listar<ImportBatch>("xml-import-runs/batches", params),
     filtroAnunciante(),
     apiFetch<ImportBatchDetail | null>(
       "/xml-import-runs/batches/active/",
@@ -54,148 +75,163 @@ export default async function ImportacoesPage({
     <>
       <PageHeader
         titulo="Importações XML"
-        descricao="Execuções da importação dos XML dos anunciantes. Roda sozinha toda noite, das 1h às 3h."
+        descricao="Cada importação roda os anunciantes em lote; abra uma para ver como foi cada anunciante. Roda sozinha toda noite, das 1h às 3h."
         crumbs={[{ label: "Importações XML" }]}
         acoes={
-          podeImportar ? (
-            <Button asChild>
-              <Link href="/importacoes/importar">
-                <CloudDownload data-icon="inline-start" /> Importar agora
+          <>
+            <Button asChild variant="outline">
+              <Link href="/importacoes/avulsas">
+                <History data-icon="inline-start" /> Execuções avulsas
               </Link>
             </Button>
-          ) : undefined
+            {canImport && (
+              <Button asChild>
+                <Link href="/importacoes/importar">
+                  <CloudDownload data-icon="inline-start" /> Importar agora
+                </Link>
+              </Button>
+            )}
+          </>
         }
       />
       <div className="mb-6">
-        <BatchProgress initial={activeBatch} canCancel={podeImportar} />
+        <BatchProgress initial={activeBatch} canCancel={canImport} />
       </div>
       <AtualizarEnquantoRoda
         ativo={
-          !activeBatch && pagina.results.some((i) => i.status === "RUNNING")
+          !activeBatch &&
+          page.results.some((b) => ACTIVE_BATCH_STATUSES.includes(b.status))
         }
       />
       <Toolbar
         placeholder="Buscar por anunciante…"
         filtros={[
-          fAnunciante,
+          advertiserFilter,
           {
             nome: "status",
             rotulo: "Status",
-            opcoes: Object.entries(RUN_STATUS_LABEL).map(([value, label]) => ({
-              value,
-              label,
-            })),
+            opcoes: Object.entries(BATCH_STATUS_LABEL).map(
+              ([value, label]) => ({ value, label }),
+            ),
           },
           {
-            nome: "report_email_sent",
-            rotulo: "Relatório",
-            opcoes: [
-              { value: "true", label: "E-mail enviado" },
-              { value: "false", label: "E-mail não enviado" },
-            ],
+            nome: "origin",
+            rotulo: "Origem",
+            opcoes: Object.entries(BATCH_ORIGIN_LABEL).map(
+              ([value, label]) => ({ value, label }),
+            ),
           },
         ]}
       >
-        <FiltroPeriodo campo="started_at" />
+        <FiltroPeriodo campo="created_at" />
       </Toolbar>
       <DataTable
-        linhas={pagina.results}
+        linhas={page.results}
         ordenacaoAtual={params.ordering as string}
         colunas={[
           {
-            chave: "advertiser_name",
-            titulo: "Anunciante",
-            render: (i) => (
-              <Link
-                href={`/importacoes/${i.id}`}
-                className="font-medium hover:underline"
-              >
-                {i.advertiser_name}
-              </Link>
+            chave: "created_at",
+            titulo: "Importação",
+            ordenavel: "created_at",
+            render: (b) => (
+              <div className="flex flex-col gap-0.5">
+                <Link
+                  href={`/importacoes/lotes/${b.id}`}
+                  className="font-medium whitespace-nowrap hover:underline"
+                >
+                  {formatarData(b.started_at ?? b.created_at, true)}
+                </Link>
+                <span className="text-xs text-muted-foreground">
+                  {batchSource(b)}
+                </span>
+              </div>
             ),
           },
           {
             chave: "status",
             titulo: "Status",
-            render: (i) => (
-              <span title={i.error_message || undefined}>
-                <RunStatusBadge status={i.status} />
+            render: (b) => (
+              <span title={b.error_message || undefined}>
+                <BatchStatusBadge status={b.status} />
               </span>
             ),
           },
           {
-            chave: "started_at",
-            titulo: "Início",
-            ordenavel: "started_at",
-            render: (i) => formatarData(i.started_at, true),
+            chave: "advertisers",
+            titulo: "Anunciantes",
+            ordenavel: "total_advertisers",
+            render: (b) => (
+              <div className="flex flex-col gap-0.5">
+                <span className="tabular-nums">
+                  {formatarNumero(b.ok)} de{" "}
+                  {formatarNumero(b.total_advertisers)} importados
+                </span>
+                {advertiserProblems(b).length > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {advertiserProblems(b).map(([n, label, color], index) => (
+                      <span key={label}>
+                        {index > 0 && " · "}
+                        <span className={color}>
+                          {formatarNumero(n)} {label}
+                        </span>
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </div>
+            ),
           },
           {
-            chave: "finished_at",
-            titulo: "Término",
-            ordenavel: "finished_at",
-            render: (i) =>
-              i.finished_at ? formatarData(i.finished_at, true) : "—",
+            chave: "duration",
+            titulo: "Duração",
+            className: "whitespace-nowrap",
+            render: (b) => formatDuration(b.started_at, b.finished_at),
           },
           {
             chave: "total_properties",
-            titulo: "Total",
-            ordenavel: "total_properties",
+            titulo: "Imóveis",
             className: "text-right tabular-nums",
-            render: (i) => formatarNumero(i.total_properties),
+            render: (b) => formatarNumero(b.total_properties),
           },
           {
             chave: "valid_properties",
             titulo: "Válidos",
             className: "text-right tabular-nums",
-            render: (i) => (
+            render: (b) => (
               <span className="text-success">
-                {formatarNumero(i.valid_properties)}
+                {formatarNumero(b.valid_properties)}
               </span>
             ),
           },
           {
             chave: "invalid_properties",
             titulo: "Inválidos",
-            ordenavel: "invalid_properties",
             className: "text-right tabular-nums",
-            render: (i) => (
+            render: (b) => (
               <span
                 className={
-                  i.invalid_properties > 0 ? "font-medium text-destructive" : ""
+                  b.invalid_properties > 0 ? "font-medium text-destructive" : ""
                 }
               >
-                {formatarNumero(i.invalid_properties)}
+                {formatarNumero(b.invalid_properties)}
               </span>
             ),
           },
-          {
-            chave: "report_email_sent",
-            titulo: "Relatório",
-            render: (i) => (
-              <StatusBadge
-                ativo={i.report_email_sent}
-                rotulos={["Enviado", "Não enviado"]}
-              />
-            ),
-          },
         ]}
-        acoes={(i) => (
+        acoes={(b) => (
           <RowActions
-            id={i.id}
-            recurso="xml-import-runs"
-            rotulo={`a importação de ${i.advertiser_name} em ${formatarData(i.started_at, true)}`}
-            revalidar={["/importacoes"]}
-            podeExcluir={pode(sessao, "xml_import_run", "delete")}
-            extras={<AcaoVer href={`/importacoes/${i.id}`} />}
+            id={b.id}
+            podeExcluir={false}
+            extras={<AcaoVer href={`/importacoes/lotes/${b.id}`} />}
           />
         )}
         vazio={{
-          titulo: "Nenhuma importação registrada",
+          titulo: "Nenhuma importação em lote",
           descricao:
-            "Os registros são gravados automaticamente pelo job de importação.",
+            "Os lotes são criados pela importação noturna e pelo botão Importar agora. Execuções antigas, de antes dos lotes, ficam em Execuções avulsas.",
         }}
       />
-      <PaginationBar pagina={pagina} />
+      <PaginationBar pagina={page} />
     </>
   );
 }
